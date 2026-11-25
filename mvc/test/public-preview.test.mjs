@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { SecureFileController } from '../src/controllers/secure-file-controller.mjs';
+import { Database } from '../src/models/database-model.mjs';
 import { encryptEnvelopeV2, fingerprint } from '../src/services/encryption-service.mjs';
 
 test('public preview links are owner-only, hashed, expiring, and revocable', async () => {
@@ -54,5 +55,27 @@ test('public preview links are owner-only, hashed, expiring, and revocable', asy
     assert.equal(privateKey.asymmetricKeyType, 'rsa');
   } finally {
     await rm(storage, { recursive: true, force: true });
+  }
+});
+
+test('preview link metadata persists across SQLite database reopen', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'cfs-preview-db-'));
+  const path = join(dir, 'cfs.sqlite');
+  try {
+    const first = new Database(path);
+    await first.transaction(state => {
+      state.share_links.push({ id: 'c'.repeat(32), file_id: 'd'.repeat(32), token_hash: 'e'.repeat(64),
+        created_by: 'f'.repeat(32), created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 86400000).toISOString(), revoked: false });
+    });
+    first.close();
+    const second = new Database(path);
+    const links = await second.view(state => state.share_links);
+    assert.equal(links.length, 1);
+    assert.equal(links[0].token_hash, 'e'.repeat(64));
+    assert.equal(links[0].revoked, false);
+    second.close();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
   }
 });
