@@ -27,8 +27,18 @@ async function createPublicPreview(file){
  const key=await unwrapPreviewKey(file.id);
  const result=await api('/api/files/'+file.id+'/preview-links',{method:'POST',body:JSON.stringify({expires_in_days:7})});
  const url=new URL('/preview/'+result.token,window.location.origin);url.hash='key='+key;
- try{await navigator.clipboard.writeText(url.href);say('Public preview link copied. Anyone with the complete link can view the file for 7 days.');}
- catch{const field=document.createElement('input');field.value=url.href;field.readOnly=true;field.setAttribute('aria-label','Public preview link — keep private');document.getElementById('file-'+file.id).append(field);field.focus();field.select();say('Clipboard unavailable. Copy the selected public preview link; anyone with it can view the file.');}
+ const row=document.getElementById('file-'+file.id);
+ row.querySelector('.preview-link-output')?.remove();
+ const output=document.createElement('div');output.className='preview-link-output';
+ const label=document.createElement('label');label.textContent='Public preview link — anyone with this complete link can view the file for 7 days';
+ const field=document.createElement('input');field.type='text';field.value=url.href;field.readOnly=true;field.autocomplete='off';field.spellcheck=false;field.setAttribute('aria-label','Complete public preview link — keep private');
+ const copy=document.createElement('button');copy.type='button';copy.className='secondary';copy.textContent='Copy link';
+ const status=document.createElement('small');status.className='preview-link-status';status.setAttribute('role','status');
+ copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(field.value);status.textContent='Link copied. Share the complete URL, including the part after #key=.';}catch{field.focus();field.select();status.textContent='Clipboard unavailable. The link is selected; copy it manually.';}});
+ output.append(label,field,copy,status);row.append(output);
+ try{await navigator.clipboard.writeText(url.href);status.textContent='Preview link created and copied. Share the complete URL, including the part after #key=.';}
+ catch{field.focus();field.select();status.textContent='Preview link created. Clipboard unavailable; the complete URL is selected for manual copying.';}
+ say('Public preview link created. It is displayed directly beneath this file; keep the complete link private.');
 }
 
 function downloadPrivateKey(pem){const blob=new Blob([pem],{type:'application/x-pem-file'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='cfs-private-key.pem';a.style.display='none';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
