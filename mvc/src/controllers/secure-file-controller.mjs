@@ -52,7 +52,7 @@ export class SecureFileController {
   if(!Number.isInteger(expiresInDays)||expiresInDays<1||expiresInDays>30)throw Object.assign(new Error('Preview links must expire in 1–30 days.'),{status:400});
   const {file,user}=await this.db.view(s=>({file:s.files.find(f=>f.id===fileId&&f.owner_id===ownerId),user:s.users.find(u=>u.id===ownerId)}));
   if(!file||!user?.key_fingerprint)throw Object.assign(new Error('Owned file or registered owner key not found.'),{status:404});
-  const raw=await readFile(join(this.storage,file.stored_name));
+  const stored=String(file.stored_name||'');if(!stored||basename(stored)!==stored||stored==='.'||stored==='..')throw Object.assign(new Error('Unsafe encrypted file storage reference.'),{status:409});const target=resolve(this.storage,stored);if(!target.startsWith(resolve(this.storage)+sep))throw Object.assign(new Error('Encrypted file storage reference is outside the storage directory.'),{status:409});const raw=await readFile(target);
   if(file.encrypted_size!==undefined&&raw.length!==file.encrypted_size)throw Object.assign(new Error('Stored encrypted file size does not match metadata.'),{status:409});
   if(file.encrypted_sha256&&createHash('sha256').update(raw).digest('hex')!==file.encrypted_sha256)throw Object.assign(new Error('Stored encrypted file checksum mismatch.'),{status:409});
   const {version,envelope}=inspectEnvelope(raw);
@@ -72,7 +72,7 @@ export class SecureFileController {
   const hash=createHash('sha256').update(secret).digest('hex');
   const record=await this.db.view(s=>{const link=(s.share_links||[]).find(l=>l.token_hash===hash&&!l.revoked&&Date.parse(l.expires_at)>Date.now());if(!link)return null;const file=s.files.find(f=>f.id===link.file_id);return file?{link,file}:null;});
   if(!record)throw Object.assign(new Error('Preview link not found or expired.'),{status:404});
-  const raw=await readFile(join(this.storage,record.file.stored_name));
+  const stored=String(record.file.stored_name||'');if(!stored||basename(stored)!==stored||stored==='.'||stored==='..')throw Object.assign(new Error('Unsafe encrypted file storage reference.'),{status:409});const target=resolve(this.storage,stored);if(!target.startsWith(resolve(this.storage)+sep))throw Object.assign(new Error('Encrypted file storage reference is outside the storage directory.'),{status:409});const raw=await readFile(target);
   if(record.file.encrypted_size!==undefined&&raw.length!==record.file.encrypted_size)throw Object.assign(new Error('Stored encrypted file size mismatch.'),{status:409});
   if(record.file.encrypted_sha256&&createHash('sha256').update(raw).digest('hex')!==record.file.encrypted_sha256)throw Object.assign(new Error('Stored encrypted file checksum mismatch.'),{status:409});
   inspectEnvelope(raw);
