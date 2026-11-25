@@ -1,47 +1,47 @@
-# v1.4.2 deployment and operations
+# Cloud File Server v1.4.2
 
-## Topology
+The active application is the native Node.js MVC server; Flask is not part of the active runtime. v1.4.2 adds a guarded restore utility, Nginx TLS reverse-proxy and systemd deployment templates, a repeatable load-test tool, bounded upload concurrency, safer backup verification, and an internal security review report.
 
-Expose only Nginx on TCP 80/443. The Node process binds to `127.0.0.1:5080`; do not publish the Node port. Use a dedicated unprivileged `cfs` account, a private environment file, and separate off-host backup storage. The provided Nginx file is a template: replace `cfs.example.com`, install a trusted certificate, verify the certificate renewal process, and run `nginx -t` before reload.
+## Run
 
-The proxy applies TLS 1.2/1.3, redirects HTTP to HTTPS, adds HSTS and browser security headers, caps upload size and concurrent connections, forwards the real client address only through a loopback proxy, and rate-limits authentication endpoints. The app defaults to a 50 MiB upload limit and two simultaneous uploads; tune only after memory/load testing. The app only trusts `X-Real-IP` when the TCP peer is loopback. Do not expose port 5080 or permit arbitrary local processes to reach it.
+Requirements: Node.js 24.15.0 or newer.
 
-## Install
-
-1. Install Node.js 24.15.0 or newer. This release uses `node:sqlite`, which is still a release-candidate API rather than a stable API.
-2. Create a dedicated `cfs` OS account. Install the project under `/opt/cloud-file-server`, owned by root and read-only to `cfs` except the configured data, storage and audit paths.
-3. Copy `deploy/systemd/cfs.env.example` to `/etc/cfs/cfs.env`; use a unique randomly generated administrator password, set permissions to `0600`, and keep it out of source control.
-4. Adjust the systemd unit's writable paths if using non-default storage/database/audit paths. Enable the service only after the TLS proxy and firewall are configured.
-5. Install `deploy/nginx/cfs.conf` into Nginx, update hostname and certificate paths, run `nginx -t`, reload Nginx, and verify HTTP redirects to HTTPS.
-6. Firewall inbound traffic to 80/443 only. Restrict SSH and administrative access separately.
-
-## Restore drill / recovery
-
-Stop the service and take a rollback copy before replacing any existing target. Verify a backup first, then restore into an empty recovery directory:
-
-```bash
-node mvc/scripts/verify-backup.mjs /secure/backups/cfs-snapshot
-CFS_RESTORE_QUIESCED=1 CFS_RESTORE_CONFIRM=RESTORE \
-  node mvc/scripts/restore.mjs /secure/backups/cfs-snapshot \
-  --target-root /srv/cfs-restore-drill
+```powershell
+cd mvc
+node --test
+$env:CIS_HOST = "127.0.0.1"
+$env:CIS_PORT = "5080"
+$env:CFS_ADMIN_EMAIL = "admin@example.com"
+$env:CFS_ADMIN_PASSWORD = "replace-with-a-unique-random-password-of-24-or-more-characters"
+node server.mjs
 ```
 
-The restore maps the SQLite DB to `mvc/data/cfs.sqlite`, encrypted blobs to `storage/`, and the optional audit log to `audit.jsonl`. Validate the restored database, verify that encrypted file hashes match, start a staging instance against the restored paths, and test administrator login, owner download, recipient download, revoked access, and audit history. Do not point a production service at the restore directory until the drill passes. The automated test suite performs an isolated restore and reads back SQLite metadata, a storage fixture and audit log; it does not substitute for a production-sized restore/time measurement.
+The default upload limit is 50 MiB with at most two simultaneous uploads. Tune only after representative memory/load tests. For network deployment, keep Node bound to loopback and use the Nginx configuration in `deploy/nginx/cfs.conf`. See `deploy/README.md` and `SECURITY-REVIEW.md`.
 
-## Load testing
+## Data and operations
 
-Run the script against a staging deployment, never against a production system without an approved test window:
+- SQLite database: `mvc/data/cfs.sqlite`.
+- Encrypted file blobs: `storage/`.
+- JSONL application audit log: `audit.jsonl`.
+- Offline backup: stop the service, set `CFS_BACKUP_QUIESCED=1` and `CFS_BACKUP_DIR`, then run `node mvc/scripts/backup.mjs`.
+- Verify: `node mvc/scripts/verify-backup.mjs <backup-directory>`.
+- Restore drill: `CFS_RESTORE_QUIESCED=1 CFS_RESTORE_CONFIRM=RESTORE node mvc/scripts/restore.mjs <backup-directory> --target-root <empty-recovery-directory>`.
+- Load test: `node mvc/scripts/benchmark.mjs https://staging.example.com 1000 25 /health`.
 
-```bash
-node mvc/scripts/benchmark.mjs https://cfs-staging.example.com 1000 25 /health
-```
+## Release status
 
-It reports request failures, throughput and p50/p95/p99 latency. Run authenticated upload/download and concurrent SQLite write scenarios separately before setting capacity targets. The script does not itself define an acceptable service-level objective.
+v1.4.2 is an operational-validation release candidate, **not production approved**. The restore path, local TLS termination, and a small health-endpoint load test passed in this environment. The environment only provides Node.js 22.16.0, so the HTTP smoke test used a temporary local-only runtime-gate bypass; supported-runtime validation on Node.js 24.15+ remains required. TLS used a temporary self-signed certificate, load testing did not exercise uploads/downloads or SQLite writes, and the security review was internal rather than independent. Malware scanning and a third-party security assessment remain required before production exposure.
 
-## Operational controls
 
-- Back up database, encrypted storage and audit log together; encrypt backups at rest and replicate off-host.
-- Monitor free disk, SQLite WAL growth, process restarts, TLS expiry, 4xx/5xx rates and backup age.
-- Perform regular restore drills and document RPO/RTO.
-- Malware scanning is not built into this release. Add an isolated scanner/quarantine pipeline before accepting untrusted uploads in a production threat model.
-- Do not deploy multi-node active/active: the metadata adapter uses a process-local snapshot and SQLite is intended here for a controlled single-server deployment.
+## Repository umbrella: CMake + GitHub CI
+
+The repository root now provides a CMake validation umbrella and GitHub Actions workflow. This does not replace the Node.js MVC application build; CMake orchestrates validation targets without compiling application code.
+
+- `architecture/c4-model.json` and `architecture/c4-context.mmd`: machine-readable C4 model and Mermaid context diagram.
+- `tools/c4-validate.mjs`: validates element IDs, relationship endpoints and diagram references.
+- `tools/smoke-probe.mjs`: CI-ready HTTP endpoint probe (defaults to `/health`).
+- `tools/env-guard.mjs`: conservative `.env` syntax/placeholder/duplicate-key linter.
+- `.github/workflows/ci.yml`: runs the umbrella and app regression checks, starts the app and probes `/health`.
+- `CMakeLists.txt`: `env-guard`, `c4-validate`, `smoke-probe`, `ci-validate`, and `full-check` targets.
+
+See `tools/README.md` and `architecture/README.md`. The C4 model is a context-level architecture description, not a compliance certification. The smoke probe is a health check, not a complete end-to-end user workflow. Never commit real `.env` secrets.

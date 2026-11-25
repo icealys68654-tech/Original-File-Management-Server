@@ -1,0 +1,17 @@
+C4Context
+title Cloud File Server — System Context
+Person(person_user, "User", "Uploads, retrieves and shares encrypted files")
+Person(person_admin, "Administrator", "Manages CIS registry, host inventory and audit review")
+System(web_app, "Cloud File Server", "Native Node.js MVC encrypted file-sharing application")
+System_Ext(browser, "Web Browser", "User-facing browser client")
+System_Ext(reverse_proxy, "TLS reverse proxy", "Terminates HTTPS and forwards loopback traffic")
+SystemDb(sqlite, "SQLite metadata store", "Users, sessions, file metadata, permissions and CIS registry")
+System(blob_store, "Encrypted blob storage", "Encrypted file payloads")
+System_Ext(audit_log, "JSONL audit log", "Append-only application audit events")
+Rel(person_user, browser, "Uses")
+Rel(person_admin, browser, "Administers")
+Rel(browser, reverse_proxy, "HTTPS")
+Rel(reverse_proxy, web_app, "Proxies to loopback")
+Rel(web_app, sqlite, "Reads/writes metadata")
+Rel(web_app, blob_store, "Stores encrypted payloads")
+Rel(web_app, audit_log, "Appends security events")

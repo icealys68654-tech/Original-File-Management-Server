@@ -1,0 +1,95 @@
+{
+  "schema": "c4-model.v1",
+  "system": {
+    "id": "cfs",
+    "name": "Cloud File Server",
+    "description": "Encrypted file sharing and CIS administration web application"
+  },
+  "elements": [
+    {
+      "id": "person_user",
+      "type": "Person",
+      "name": "User",
+      "description": "Uploads, retrieves and shares encrypted files"
+    },
+    {
+      "id": "person_admin",
+      "type": "Person",
+      "name": "Administrator",
+      "description": "Manages CIS registry, host inventory and audit review"
+    },
+    {
+      "id": "web_app",
+      "type": "SoftwareSystem",
+      "name": "Cloud File Server",
+      "description": "Native Node.js MVC application"
+    },
+    {
+      "id": "browser",
+      "type": "SoftwareSystem",
+      "name": "Web Browser",
+      "description": "User-facing browser client"
+    },
+    {
+      "id": "sqlite",
+      "type": "Container",
+      "name": "SQLite metadata store",
+      "description": "Users, sessions, file metadata, permissions and CIS registry"
+    },
+    {
+      "id": "blob_store",
+      "type": "Container",
+      "name": "Encrypted blob storage",
+      "description": "Encrypted file payloads"
+    },
+    {
+      "id": "reverse_proxy",
+      "type": "SoftwareSystem",
+      "name": "TLS reverse proxy",
+      "description": "Terminates HTTPS and forwards loopback traffic"
+    },
+    {
+      "id": "audit_log",
+      "type": "Container",
+      "name": "JSONL audit log",
+      "description": "Append-only application audit events"
+    }
+  ],
+  "relationships": [
+    {
+      "from": "person_user",
+      "to": "browser",
+      "label": "Uses"
+    },
+    {
+      "from": "person_admin",
+      "to": "browser",
+      "label": "Administers"
+    },
+    {
+      "from": "browser",
+      "to": "reverse_proxy",
+      "label": "HTTPS"
+    },
+    {
+      "from": "reverse_proxy",
+      "to": "web_app",
+      "label": "Proxies to loopback"
+    },
+    {
+      "from": "web_app",
+      "to": "sqlite",
+      "label": "Reads/writes metadata"
+    },
+    {
+      "from": "web_app",
+      "to": "blob_store",
+      "label": "Stores encrypted payloads"
+    },
+    {
+      "from": "web_app",
+      "to": "audit_log",
+      "label": "Appends security events"
+    }
+  ]
+}

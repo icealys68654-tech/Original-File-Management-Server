@@ -1,0 +1,57 @@
+Cloud File Server v1.4.2
+Release type: Native Node.js MVC + SQLite operational-validation release candidate (not production approved)
+
+Runtime
+- Node.js 24.15.0 or newer; built-in node:sqlite is a release-candidate API on supported Node releases.
+- No npm runtime dependencies or external database service.
+- Default bind: 127.0.0.1:5080; production mode enforces loopback binding and Secure cookies.
+
+Implemented
+- Account registration, scrypt password hashing, login/logout and eight-hour HttpOnly SameSite=Strict sessions.
+- CSRF token required for authenticated state-changing requests.
+- Administrator bootstrap and admin-only audit/CIS endpoints.
+- File ownership isolation, recipient-specific viewer/download permissions, grant and revocation.
+- CFS V2 AES-256-GCM content encryption with RSA-OAEP-SHA256 wrapped key for every selected recipient.
+- Mandatory RSA-3072+ key registration and SHA-256 public-key fingerprint envelope matching.
+- JSONL audit events and encrypted blob size/SHA-256 verification before downloads.
+- SQLite schema v2, transactional migration, ownerless legacy quarantine and explicit envelope-verified admin ownership assignment.
+- Offline backup, SHA-256 manifest verification and guarded restore into an explicit recovery root.
+- Restore copies only manifest-listed files, rejects symlinks/path traversal/duplicates, and refuses checksum mismatches.
+- Nginx TLS reverse-proxy template (TLS 1.2/1.3), HTTP redirect, HSTS/security headers, authentication rate limiting, connection limits; systemd service hardening template.
+- Default upload cap 50 MiB and maximum two simultaneous buffered uploads.
+- Repeatable HTTP load-test utility with throughput and percentile latency reporting.
+- SQLite-backed host inventory, CIS registry and last Nmap scan output; legacy imports preserve source files.
+- CFS V1 compatibility and authenticated recipient-list CFS V2 interoperability with Python; legacy v1.3.2 fingerprint-map V2 backward decryption retained.
+
+Validation evidence (this build)
+- Node test suite: 20 passed, 0 failed on Node.js 22.16.0 (API-level only; below supported runtime; includes ISO/CIS pipeline tests).
+- Python crypto suite: 9 passed, 0 failed.
+- Restore integration drill: restored SQLite user/file metadata, encrypted storage fixture and audit log into an isolated target; verified tampered backup rejection.
+- Local Nginx test: shipped template syntax valid; temporary self-signed certificate; HTTP redirected (301), HTTPS health and admin login passed, login cookie had Secure attribute. Test-only runtime-gate bypass used in a disposable copy; Node 24.15+ still outstanding.
+- Local health load test: 1,000 requests, concurrency 25, zero failures, 1,650.56 req/s; p50 13.09 ms, p95 25.59 ms, p99 34.00 ms, max 56.03 ms. Follow-up authenticated CIS API test: 500 POST /api/execute requests, concurrency 20, zero failures, 866.04 req/s; p50 19.12 ms, p95 42.89 ms, p99 61.34 ms, max 70.48 ms. Both are environment-specific, not capacity guarantees.
+- JavaScript syntax checks passed.
+
+Security review and limitations
+- Internal source/configuration review documented in SECURITY-REVIEW.md; it is not an independent penetration test or certification.
+- Malware scanning/quarantine is not implemented.
+- Upload parsing buffers each request in memory; default 50 MiB and two active uploads bound exposure but do not replace streaming uploads or representative large-file tests.
+- In-process rate limiting is not shared across multiple app processes; architecture is single-server/single-process. Nginx provides edge limiting for login/register.
+- Audit JSONL is not cryptographically tamper-evident; protect/ship logs off-host.
+- node:sqlite remains a release-candidate API, not stable.
+- No public CA certificate issuance/renewal, external network TLS scan, upload/download/write load test, malware scanner integration, independent security review, or full production DR exercise was completed.
+- Backup encryption at rest and off-host retention are operator responsibilities.
+- RSA key rotation requires re-encryption; revocation cannot recall previously downloaded copies.
+
+Deployment decision
+- Release candidate for controlled staging only. Do not expose to public internet or mark production-approved until Node 24.15+ runtime validation, public certificate/renewal validation, representative transfer/write load testing, malware-scanning controls, documented RPO/RTO restore exercise, and independent security assessment are complete.
+
+Release contents include:
+- SECURITY-REVIEW.md — internal review scope, findings and production gates.
+- VALIDATION-REPORT.txt — test evidence, measured load result and uncompleted external checks.
+- PRODUCTION-GATE-REPORT.md — requested ISO/CIS workflow mapping, follow-up gate results and remaining production blockers.
+- deploy/nginx/cfs.conf — TLS reverse proxy template.
+- deploy/systemd/cfs.service and cfs.env.example — hardened service template and protected environment example.
+- mvc/scripts/restore.mjs — guarded restore tool.
+- mvc/scripts/benchmark.mjs — repeatable HTTP benchmark utility.
+- mvc/test/restore.test.mjs — synthetic restore and tamper-detection integration test.
+- mvc/test/iso-duplicate-view.test.mjs — duplicate-view, controller mode and SQLite registry integration tests.

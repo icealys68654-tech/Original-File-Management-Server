@@ -1,0 +1,2 @@
+# Optional dependency for the Python secure_transfer.py CLI utility only.
+cryptography>=42.0

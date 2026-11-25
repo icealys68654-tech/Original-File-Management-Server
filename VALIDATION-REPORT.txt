@@ -1,0 +1,61 @@
+Cloud File Server v1.4.2 — Validation Report
+Release classification: Native Node.js MVC / SQLite operational-validation release candidate; NOT production approved.
+
+1. Automated tests
+- Node built-in suite: 20 passed, 0 failed on Node.js 22.16.0 (includes explicit ISO duplicate-view/controller/model/registry pipeline tests). This environment is below the supported runtime minimum (24.15.0); these are API-level tests only and do not establish supported-runtime behavior.
+- Python multi-recipient crypto suite: 9 passed, 0 failed.
+- JavaScript syntax checks passed for all .mjs server/source/scripts/tests and browser scripts.
+
+2. Backup and restore
+- Added guarded restore utility requiring stopped-service acknowledgement, explicit destructive confirmation and explicit target root.
+- Validates manifest format, unique safe relative paths, regular-file status, no symlinks, file sizes and SHA-256 digests before copying. Copies only manifest-listed files.
+- Automated isolated restore drill passed: SQLite user/file metadata, encrypted-storage fixture and audit log were restored and read back.
+- Tampered encrypted-storage fixture was rejected by verifier and restore command.
+- This was a small synthetic dataset. No production-size restore duration, RPO/RTO or disaster-recovery exercise has been measured.
+
+3. TLS deployment
+- Nginx template passed `nginx -t` using a temporary local configuration and self-signed certificate.
+- Live local Nginx reverse-proxy smoke passed: HTTP endpoint returned 301 redirect; HTTPS health endpoint returned v1.4.2; login response set a Secure session cookie.
+- TLS config specifies TLS 1.2/1.3, session controls, HSTS, nosniff, referrer policy, frame protection, upload cap, connection limits and auth endpoint rate limits.
+- Node process remained bound to loopback.
+- Not tested: public CA issuance, DNS, external firewall, certificate renewal, OCSP, public internet scan, or real production host/systemd confinement.
+- Test server used a temporary local-only patch to bypass the Node 24.15 runtime gate because this environment only provides Node 22.16. The shipped server retains the runtime gate.
+
+4. Load test
+- `mvc/scripts/benchmark.mjs` added for repeatable concurrency and percentile reporting.
+- Local health-only run: 1,000 requests, concurrency 25, 0 failures, 0.606 seconds, 1,650.56 requests/second; p50 13.09 ms, p95 25.59 ms, p99 34.00 ms, max 56.03 ms.
+- This measures only `/health` in this environment; it does not represent authenticated API operations, file uploads/downloads, encryption CPU, concurrent SQLite writes, or target production hardware. No capacity SLA can be inferred.
+
+5. Internal security review
+Controls observed
+- Scrypt password hashes; random 32-byte session and CSRF tokens; HttpOnly, SameSite=Strict session cookies; Secure cookie required in production mode.
+- Authenticated state-changing requests require CSRF header; API routes require session; admin endpoints check administrator role.
+- RSA recipient envelopes are enforced; encrypted blobs are integrity-checked before download.
+- Nginx template terminates TLS, redirects HTTP, sets HSTS/browser headers, limits authentication requests and connections.
+- Production Node bind is loopback-only; systemd template uses a dedicated account, restrictive filesystem and privilege settings.
+- Login/register in-memory limiter is bounded; trusted X-Real-IP is accepted only from loopback peers.
+- Upload defaults reduced to 50 MiB and two concurrent buffered uploads.
+
+Residual findings / release gates
+- HIGH: No independent security assessment or penetration test. Internal review cannot certify absence of vulnerabilities.
+- HIGH: No malware scanning/quarantine pipeline; untrusted uploads need an isolated scanning workflow before production.
+- HIGH: Node `node:sqlite` API remains release-candidate stability, not stable; deployment must accept this compatibility risk or move to a stable driver.
+- MEDIUM: Upload handler buffers request bodies in memory. Default 50 MiB and two concurrent uploads bound expected memory use, but streaming uploads and large-file stress tests remain recommended.
+- MEDIUM: Rate limiting is process-local; do not run multiple app workers/replicas. Nginx edge limiting currently covers login and registration only.
+- MEDIUM: JSONL audit is append-oriented but not cryptographically tamper-evident; ship logs to protected off-host storage.
+- MEDIUM: Backup encryption/off-host retention and restore RPO/RTO are operator responsibilities and not tested at production scale.
+- MEDIUM: No representative authenticated upload/download/concurrent-write load test.
+- Host discovery invokes `nmap` with execFile (no shell) and restricts scans to private IPv4 /22-/32 ranges; keep CIS access admin-only and enforce egress policy.
+- Self-registration remains enabled; disable or gate it externally if the deployment requires invite-only accounts.
+
+6. Decision
+- v1.4.2 passed the scoped local restore, TLS-proxy smoke, and health-endpoint load tests described above.
+- NOT production approved. Remaining gates: run server/tests on Node 24.15+, deploy with a trusted public certificate and validate renewal, run representative upload/download/write load tests on target hardware, implement malware scanning/quarantine, complete full restore/DR exercise with agreed RPO/RTO, and obtain independent security review.
+
+
+7. Follow-up ISO/CIS production gate run (2026-11-25)
+- Exercised the requested ISO_DUPLICATE_VIEW -> SORT_CONTROLLER -> DISC_MODEL + CIS -> MATH + JSON REGISTRY workflow directly. Duplicate input [9,2,9,4,2,7] produced sequential output [2,2,4,7,9,9] and unique duplicate list [9,2]; INPUT preserved order; seeded SYSTEM_CHECK produced a deterministic permutation; registry save/list/read-back/delete passed. Added `mvc/test/iso-duplicate-view.test.mjs` to preserve these checks.
+- Tested the shipped Nginx template with temporary local cert paths and alternate ports. `nginx -t` passed; HTTP redirect returned 301; HTTPS health and administrator login returned 200; login cookie carried Secure. Nginx 1.26.3 emitted a non-fatal deprecation warning for the legacy `listen ... http2` syntax. Certificate was self-signed and temporary.
+- Authenticated CIS API load probe over local TLS: 500 POST /api/execute requests, concurrency 20, zero failures, 0.577 seconds, 866.04 requests/second; p50 19.12 ms, p95 42.89 ms, p99 61.34 ms, max 70.48 ms. Authenticated registry save/list/delete also passed.
+- These HTTP/TLS probes used a disposable copy with only the Node runtime guard bypassed because host Node.js is 22.16.0; the shipped source and archive retain the Node.js 24.15.0 minimum. This does not satisfy supported-runtime validation.
+- See `PRODUCTION-GATE-REPORT.md` for the architecture mapping, exact results and outstanding gates.

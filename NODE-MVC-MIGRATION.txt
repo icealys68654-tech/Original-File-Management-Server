@@ -1,0 +1,11 @@
+Node.js MVC migration status — v1.3.2
+
+The active server is now the native Node.js MVC runtime. Flask is not required or imported in the Node execution path. The reference dashboard and CFS-HYBRID-ENCRYPTED-V1 format were used as compatibility anchors.
+
+v1.3.2 includes user registration/login, scrypt password hashes, cookie sessions, CSRF enforcement, owner-scoped files, recipient permissions, RSA key fingerprint matching, mandatory CFS V2 per-recipient envelopes, audit events and admin-only audit/CIS functions.
+
+The Node server encrypts once with AES-256-GCM and wraps the file key separately for each recipient using RSA-OAEP-SHA256. It rejects permission grants when the recipient's fingerprint does not have an envelope. The Python CLI decrypt command supports both V1 and V2.
+
+Metadata is stored in atomic JSON at mvc/data/cfs-db.json. This avoids native dependencies but is single-process and is not SQLite; it is not appropriate for horizontally scaled production. Existing legacy storage is not automatically imported into ownership metadata. RSA key rotation is blocked and requires new-account/re-encryption workflow.
+
+Current release status: integration candidate only, not production approved. Complete independent security review, TLS deployment, backups/restore, malware scanning, monitoring, multi-process concurrency design and legacy-file migration before public deployment.
