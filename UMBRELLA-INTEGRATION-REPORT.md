@@ -6,6 +6,10 @@ This is an additive repository/workflow layer over the supplied v1.4.2 source ar
 
 ## Added artifacts
 
+- `go.mod` and `cmd/umbrella/`: Go 1.23+ sequential workflow runner (`validate`, `test`, `smoke`, `full`) with unit tests.
+- `GO-UMBRELLA.md` and `architecture/bind-vector-parse-phase.md`: operator guide and abstract bind/vector/parse phase contract.
+- GitHub Actions now tests the Go runner, invokes its full validation workflow, and uses it for the live endpoint smoke probe.
+
 - `CMakeLists.txt`: CMake 3.20+ targets `env-guard`, `c4-validate`, `smoke-probe`, `ci-validate`, and `full-check`.
 - `architecture/c4-model.json`: machine-readable C4 model with 8 elements and 7 relationships.
 - `architecture/c4-context.mmd`: Mermaid C4 context diagram intended for GitHub rendering.

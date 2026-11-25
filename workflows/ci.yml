@@ -12,25 +12,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24.15.0'
           cache: false
       - uses: lukka/get-cmake@latest
-      - name: Environment template lint
-        run: node tools/env-guard.mjs --file deploy/systemd/cfs.env.example --example
-      - name: C4 model validation
-        run: node tools/c4-validate.mjs
-      - name: Umbrella tooling tests
-        run: node --test tools/test/tooling.test.mjs
-      - name: Application regression tests
-        working-directory: mvc
-        run: |
-          node --test
-          node --check server.mjs
+      - name: Go umbrella unit tests
+        run: go test ./...
+      - name: Go umbrella validation and regression workflow
+        run: go run ./cmd/umbrella full
       - name: Configure CMake umbrella
         run: cmake -S . -B build
-      - name: Build validation umbrella
+      - name: Build CMake validation umbrella
         run: cmake --build build --target ci-validate
       - name: Start app and run CI smoke probe
         shell: bash
@@ -47,8 +44,14 @@ jobs:
           node mvc/server.mjs > "$RUNNER_TEMP/cfs-server.log" 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
           for i in $(seq 1 30); do
-            if curl --silent --fail "$CFS_BASE_URL/health" >/dev/null; then break; fi
+            if curl --silent --fail "$CFS_BASE_URL/health" >/dev/null; then ready=1; break; fi
             sleep 1
           done
-          node tools/smoke-probe.mjs "$CFS_BASE_URL"
+          if [ "$ready" -ne 1 ]; then
+            cat "$RUNNER_TEMP/cfs-server.log"
+            echo "Application did not become healthy within 30 seconds"
+            exit 1
+          fi
+          go run ./cmd/umbrella smoke
