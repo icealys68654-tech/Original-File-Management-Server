@@ -1,0 +1,14 @@
+{
+  "name": "cloud-file-server-cis-mvc",
+  "version": "1.4.2",
+  "private": true,
+  "type": "module",
+  "description": "Flask-free Node.js MVC cloud file server with SQLite metadata and encrypted sharing",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test",
+    "check": "node --check server.mjs && node --test",
+    "load-test": "node scripts/benchmark.mjs"
+  },
+  "engines": { "node": ">=24.15.0" }
+}

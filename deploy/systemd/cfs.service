@@ -1,0 +1,33 @@
+[Unit]
+Description=Cloud File Server (Node.js MVC)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=cfs
+Group=cfs
+WorkingDirectory=/opt/cloud-file-server/mvc
+EnvironmentFile=/etc/cfs/cfs.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=CFS_ENV=production
+Environment=CFS_COOKIE_SECURE=1
+Environment=CIS_HOST=127.0.0.1
+Environment=CIS_PORT=5080
+ExecStart=/usr/bin/env node /opt/cloud-file-server/mvc/server.mjs
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/cloud-file-server/mvc/data /opt/cloud-file-server/storage /var/lib/cfs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

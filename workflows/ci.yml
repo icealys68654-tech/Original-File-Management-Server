@@ -1,0 +1,54 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+          cache: false
+      - uses: lukka/get-cmake@latest
+      - name: Environment template lint
+        run: node tools/env-guard.mjs --file deploy/systemd/cfs.env.example --example
+      - name: C4 model validation
+        run: node tools/c4-validate.mjs
+      - name: Umbrella tooling tests
+        run: node --test tools/test/tooling.test.mjs
+      - name: Application regression tests
+        working-directory: mvc
+        run: |
+          node --test
+          node --check server.mjs
+      - name: Configure CMake umbrella
+        run: cmake -S . -B build
+      - name: Build validation umbrella
+        run: cmake --build build --target ci-validate
+      - name: Start app and run CI smoke probe
+        shell: bash
+        env:
+          CIS_HOST: 127.0.0.1
+          CIS_PORT: '5080'
+          CFS_ADMIN_EMAIL: ci-admin@example.test
+          CFS_ADMIN_PASSWORD: ci-only-password-not-for-production
+          CFS_DB_PATH: ${{ runner.temp }}/cfs-ci.sqlite
+          CFS_STORAGE_PATH: ${{ runner.temp }}/cfs-storage
+          CFS_AUDIT_PATH: ${{ runner.temp }}/cfs-audit.jsonl
+          CFS_BASE_URL: http://127.0.0.1:5080
+        run: |
+          node mvc/server.mjs > "$RUNNER_TEMP/cfs-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --silent --fail "$CFS_BASE_URL/health" >/dev/null; then break; fi
+            sleep 1
+          done
+          node tools/smoke-probe.mjs "$CFS_BASE_URL"
