@@ -24,10 +24,9 @@ async function main(){
  }
  const plaintext=await crypto.subtle.decrypt(options,aes,ciphertext);
  const name=String(envelope.filename||'Shared file'),kind=ext(name);$('title').textContent=name;document.title=name+' · Secure preview';$('status').textContent='Decrypted locally. No download or edit controls are provided.';
- const blobType=({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',avif:'image/avif',pdf:'application/pdf',txt:'text/plain',csv:'text/csv',log:'text/plain',json:'application/json',md:'text/plain'})[kind]||'application/octet-stream';
+ const blobType=({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',avif:'image/avif',txt:'text/plain',csv:'text/csv',log:'text/plain',json:'application/json',md:'text/plain'})[kind]||'application/octet-stream';
  const blob=new Blob([plaintext],{type:blobType}),url=URL.createObjectURL(blob),container=$('content');
  if(blobType.startsWith('image/')){const img=document.createElement('img');img.className='preview-image';img.alt='Shared image preview';img.src=url;container.append(img);}
- else if(kind==='pdf'){const frame=document.createElement('iframe');frame.className='preview-frame';frame.title='PDF preview';frame.setAttribute('sandbox','allow-same-origin');frame.referrerPolicy='no-referrer';frame.src=url;container.append(frame);}
  else if(['txt','csv','log','json','md'].includes(kind)){const pre=document.createElement('pre');pre.className='preview-text';pre.textContent=new TextDecoder('utf-8',{fatal:false}).decode(plaintext);container.append(pre);}
  else {URL.revokeObjectURL(url);$('status').textContent='The encrypted file was retrieved and decrypted in this browser, but this file type is not supported for inline preview. No download is offered.';}
 }
