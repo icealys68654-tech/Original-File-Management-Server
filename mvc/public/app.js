@@ -4,14 +4,14 @@ async function api(path,options={}){const method=(options.method||'GET').toUpper
 function formObj(form){return Object.fromEntries(new FormData(form));}
 function toPem(label,bytes){let binary='';for(const byte of new Uint8Array(bytes))binary+=String.fromCharCode(byte);const base64=btoa(binary).match(/.{1,64}/g).join('\n');return `-----BEGIN ${label}-----\n${base64}\n-----END ${label}-----\n`;}
 
-function pemDer(pem,label){const m=pem.match(new RegExp('-----BEGIN '+label+'-----([\\s\\S]*?)-----END '+label+'-----'));if(!m)throw Error('The selected file is not a valid PKCS#8 private key PEM.');return Uint8Array.from(atob(m[1].replace(/\\s/g,'')),x=>x.charCodeAt(0));}
-function toBase64Url(bytes){let s='';for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s).replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');}
+function pemDer(pem,label){const m=pem.match(new RegExp('-----BEGIN '+label+'-----([\s\S]*?)-----END '+label+'-----'));if(!m)throw Error('The selected file is not a valid PKCS#8 private key PEM.');return Uint8Array.from(atob(m[1].replace(/\s/g,'')),x=>x.charCodeAt(0));}
+function toBase64Url(bytes){let s='';for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');}
 async function unwrapPreviewKey(fileId){
  const file=$('previewPrivateKey').files[0];if(!file)throw Error('Select your locally stored cfs-private-key.pem first.');
  if(!globalThis.isSecureContext||!crypto?.subtle)throw Error('Secure browser cryptography is unavailable; use HTTPS.');
  const pem=await file.text(),privateKey=await crypto.subtle.importKey('pkcs8',pemDer(pem,'PRIVATE KEY'),{name:'RSA-OAEP',hash:'SHA-256'},false,['decrypt']);
  const response=await fetch('/api/files/'+fileId,{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error('Unable to read the encrypted file as its owner.');
- const raw=new Uint8Array(await response.arrayBuffer()),decoder=new TextDecoder(),v2='CFS-HYBRID-ENCRYPTED-V2\\n',v1='CFS-HYBRID-ENCRYPTED-V1\\n';let version,magic;
+ const raw=new Uint8Array(await response.arrayBuffer()),decoder=new TextDecoder(),v2='CFS-HYBRID-ENCRYPTED-V2\n',v1='CFS-HYBRID-ENCRYPTED-V1\n';let version,magic;
  if(decoder.decode(raw.subarray(0,v2.length))===v2){version=2;magic=v2;}else if(decoder.decode(raw.subarray(0,v1.length))===v1){version=1;magic=v1;}else throw Error('Unrecognized encrypted file format.');
  const envelope=JSON.parse(decoder.decode(raw.subarray(magic.length)));let wrapped,aad;
  if(version===2){const recipient=(envelope.recipients||[]).find(r=>r.user_id===me.id&&r.fingerprint===me.key_fingerprint);if(!recipient)throw Error('This file has no RSA envelope for your registered key.');wrapped=recipient.wrapped_key;aad=new TextEncoder().encode(JSON.stringify({filename:envelope.filename,recipients:envelope.recipients.map(r=>({fingerprint:r.fingerprint,user_id:String(r.user_id)}))}));}
