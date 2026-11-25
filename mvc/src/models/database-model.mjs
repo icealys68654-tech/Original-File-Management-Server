@@ -2,7 +2,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, extname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-const EMPTY = { users: [], sessions: [], files: [], permissions: [], hosts: [], registry: [], last_scan: '' };
+const EMPTY = { users: [], sessions: [], files: [], permissions: [], share_links: [], hosts: [], registry: [], last_scan: '' };
 const clone = value => structuredClone(value);
 
 /** SQLite-backed metadata store. Controllers retain the state/transaction API. */
@@ -135,7 +135,7 @@ export class Database {
       const permission = db.prepare('INSERT INTO permissions(file_id,user_id,active,payload) VALUES(?,?,?,?)');
       for (const x of state.permissions) permission.run(x.file_id, x.user_id, x.active ? 1 : 0, JSON.stringify(x));
       const app = db.prepare('INSERT INTO app_data(key,payload) VALUES(?,?)');
-      for (const key of ['hosts','registry','last_scan']) app.run(key, JSON.stringify(state[key] ?? (key === 'last_scan' ? '' : [])));
+      for (const key of ['hosts','registry','last_scan','share_links']) app.run(key, JSON.stringify(state[key] ?? (key === 'last_scan' ? '' : [])));
   }
 
   async writeState(state) {
