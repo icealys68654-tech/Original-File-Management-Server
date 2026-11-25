@@ -12,12 +12,12 @@ import { token } from './src/services/security-service.mjs';
 const HERE=fileURLToPath(new URL('.',import.meta.url)),ROOT=resolve(HERE,'..'),PUBLIC=resolve(HERE,'public'),STORAGE=resolve(process.env.CFS_STORAGE_PATH||join(ROOT,'storage'));
 const nodeMajor=Number(process.versions.node.split('.')[0]),nodeMinor=Number(process.versions.node.split('.')[1]);
 if(nodeMajor<24||(nodeMajor===24&&nodeMinor<15))throw new Error('Cloud File Server v1.4.2 requires Node.js 24.15.0 or newer (node:sqlite release-candidate API).');
-const PORT=Number(process.env.CIS_PORT||5080),HOST=process.env.CIS_HOST||'127.0.0.1',UPLOAD_MB=Number(process.env.MAX_UPLOAD_MB||50),MAX_CONCURRENT_UPLOADS=Number(process.env.MAX_CONCURRENT_UPLOADS||2);
+const RENDER_PROXY=process.env.CFS_RENDER_PROXY==='1',PORT=Number(process.env.PORT||process.env.CIS_PORT||5080),HOST=process.env.CIS_HOST||(RENDER_PROXY?'0.0.0.0':'127.0.0.1'),UPLOAD_MB=Number(process.env.MAX_UPLOAD_MB||50),MAX_CONCURRENT_UPLOADS=Number(process.env.MAX_CONCURRENT_UPLOADS||2);
 if(!Number.isInteger(PORT)||PORT<1||PORT>65535||!Number.isFinite(UPLOAD_MB)||UPLOAD_MB<1||UPLOAD_MB>2048||!Number.isInteger(MAX_CONCURRENT_UPLOADS)||MAX_CONCURRENT_UPLOADS<1||MAX_CONCURRENT_UPLOADS>32)throw new Error('Invalid CIS_PORT, MAX_UPLOAD_MB or MAX_CONCURRENT_UPLOADS configuration.');
 const MAX_BYTES=UPLOAD_MB*1024*1024;let activeUploads=0;
 if(process.env.CFS_ENV==='production'){
  if(process.env.CFS_COOKIE_SECURE!=='1')throw new Error('Production mode requires CFS_COOKIE_SECURE=1.');
- if(!['127.0.0.1','::1','localhost'].includes(HOST))throw new Error('Production mode requires binding to loopback behind a TLS reverse proxy.');
+ if(!['127.0.0.1','::1','localhost'].includes(HOST)&&!(RENDER_PROXY&&HOST==='0.0.0.0'))throw new Error('Production mode requires loopback binding, or CFS_RENDER_PROXY=1 with 0.0.0.0 behind Render TLS proxy.');
  if(!process.env.CFS_ADMIN_EMAIL||!process.env.CFS_ADMIN_PASSWORD||process.env.CFS_ADMIN_PASSWORD.length<16)throw new Error('Production mode requires CFS_ADMIN_EMAIL and a CFS_ADMIN_PASSWORD of at least 16 characters.');
 }
 const AUDIT_PATH=process.env.CFS_AUDIT_PATH||join(ROOT,'audit.jsonl');await mkdir(STORAGE,{recursive:true});await mkdir(join(HERE,'data'),{recursive:true});const DB_PATH=process.env.CFS_DB_PATH||join(HERE,'data','cfs.sqlite');const LEGACY_DB_PATH=process.env.CFS_LEGACY_JSON_PATH||join(HERE,'data','cfs-db.json');const db=new Database(DB_PATH,{legacyPath:LEGACY_DB_PATH});
