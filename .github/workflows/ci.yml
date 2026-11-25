@@ -19,7 +19,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.15.0'
-          cache: false
       - uses: lukka/get-cmake@latest
       - name: Go umbrella unit tests
         run: go test ./...
