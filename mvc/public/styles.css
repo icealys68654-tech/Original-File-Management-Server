@@ -3,3 +3,10 @@
 
 .registry-row.file-link-target{outline:2px solid #60a5fa;outline-offset:4px;border-radius:8px;background:#172b46}
 .registry-row input{max-width:100%;flex-basis:100%}
+
+.preview-link-output{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;flex-basis:100%;width:100%;padding:12px;margin-top:8px;border:1px solid #456080;border-radius:10px;background:#0b1526}
+.preview-link-output label{grid-column:1/-1;margin:0;color:#c7d2e4;font-size:13px}
+.preview-link-output input{min-width:0;width:100%;font-size:13px}
+.preview-link-output button{align-self:stretch;white-space:nowrap}
+.preview-link-status{grid-column:1/-1;color:#a7f3d0;overflow-wrap:anywhere}
+@media(max-width:600px){.preview-link-output{grid-template-columns:1fr}.preview-link-output button{width:100%}}
