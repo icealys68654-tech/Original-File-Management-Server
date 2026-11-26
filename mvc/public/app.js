@@ -10,7 +10,7 @@ async function privatePemFingerprint(pem){const key=await crypto.subtle.importKe
 async function verifySelectedPrivateKey(expected=me?.key_fingerprint){const file=$('accountPrivateKey').files[0];if(!file)throw Error('Select the original cfs-private-key.pem for this account before uploading or creating a preview link.');if(!globalThis.isSecureContext||!crypto?.subtle)throw Error('Secure browser cryptography is unavailable; use HTTPS.');const actual=await privatePemFingerprint(await file.text());if(!expected||actual!==expected)throw Error('This private key does not match the one registered to this account. Use the original cfs-private-key.pem; do not generate a replacement.');return file;}
 function toBase64Url(bytes){let s='';for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');}
 async function unwrapPreviewKey(fileId){
- const file=$('previewPrivateKey').files[0];if(!file)throw Error('Select your locally stored cfs-private-key.pem first.');
+ const file=$('accountPrivateKey').files[0];if(!file)throw Error('Select your locally stored cfs-private-key.pem first.');
  if(!globalThis.isSecureContext||!crypto?.subtle)throw Error('Secure browser cryptography is unavailable; use HTTPS.');
  const pem=await file.text();if(await privatePemFingerprint(pem)!==me.key_fingerprint)throw Error('Selected private key does not match this account’s registered key pair.');const privateKey=await crypto.subtle.importKey('pkcs8',pemDer(pem,'PRIVATE KEY'),{name:'RSA-OAEP',hash:'SHA-256'},false,['decrypt']);
  const response=await fetch('/api/files/'+fileId,{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error('Unable to read the encrypted file as its owner.');
