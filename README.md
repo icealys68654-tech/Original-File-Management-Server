@@ -9,7 +9,7 @@ Cloud File Server (CFS) is organized as a small, auditable service and a determi
 The project separates three concerns:
 
 1. **Runtime** — the Node.js MVC application and its local data stores.
-2. **Operations** — backup, verification, restore, load testing, Nginx, and systemd deployment assets.
+2. **Operations** — backup, verification, restore, load testing, Nginx, systemd, and managed-host deployment guidance.
 3. **Validation** — Go and CMake orchestration, Node.js checks, architecture validation, and GitHub Actions.
 
 The repository-level Go/CMake workflows orchestrate checks; they do not compile the Node.js application, provision production infrastructure, or deploy releases.
@@ -24,8 +24,7 @@ The repository-level Go/CMake workflows orchestrate checks; they do not compile 
 - C4 architecture model and diagram validation.
 - Environment-template linting and HTTP health probing.
 - Go and CMake validation entry points with GitHub Actions CI.
-
-Dropbox OAuth integration is documented separately where enabled by the deployed application version. See [Dropbox integration documentation](docs/DROPBOX-INTEGRATION.md) if that file is present in your checkout.
+- Optional Dropbox OAuth with encrypted token storage.
 
 ## Abstract lexer and parser model
 
@@ -81,17 +80,25 @@ Node.js MVC application
       +--> JSONL audit log
 ```
 
-For network deployment, keep the Node.js service bound to loopback and place Nginx in front of it:
+For a VPS deployment, keep the Node.js service bound to loopback and place Nginx in front of it:
 
 ```text
 Internet -> Nginx HTTPS (443) -> Node.js (127.0.0.1:5080)
 ```
 
-Expose only the required public web ports (normally 80/443). Do not expose the Node.js application port directly to the internet.
+For a managed Render deployment, Render terminates HTTPS and forwards traffic to the Node.js web service:
+
+```text
+Browser -> Render HTTPS -> Node.js MVC service
+                         |-> persistent disk (/var/data)
+                         |-> SQLite + encrypted blobs + audit + Dropbox tokens
+```
+
+The application currently serves its own browser UI from `mvc/public`; its browser code calls relative same-origin API paths and uses same-origin cookies. GitHub Pages is not currently a drop-in frontend host for this UI. A separate Pages frontend requires an explicit cross-origin API and cookie/CSRF design before it can safely use this backend.
 
 ## Requirements
 
-- Node.js 24.15.0 or newer for the active MVC application.
+- Node.js 24.15.0 or newer for the active MVC application and `node:sqlite`.
 - Go 1.23+ for the Go umbrella workflow.
 - CMake 3.20+ for the optional CMake workflow.
 - Linux, Nginx, and systemd for the repository's example VPS deployment.
@@ -104,6 +111,7 @@ From the repository root:
 
 ```sh
 cd mvc
+node --version
 node --test
 CIS_HOST=127.0.0.1 CIS_PORT=5080 node server.mjs
 ```
@@ -127,6 +135,7 @@ The default upload limit is 50 MiB with at most two simultaneous uploads. Change
 | SQLite database | `mvc/data/cfs.sqlite` |
 | Encrypted file blobs | `storage/` |
 | JSONL audit log | `audit.jsonl` |
+| Dropbox token store | `mvc/data/dropbox-tokens.enc` unless `CFS_DROPBOX_TOKEN_PATH` is set |
 | Backup | Stop the service, set `CFS_BACKUP_QUIESCED=1` and `CFS_BACKUP_DIR`, then run `node mvc/scripts/backup.mjs` |
 | Backup verification | `node mvc/scripts/verify-backup.mjs <backup-directory>` |
 | Restore drill | Set `CFS_RESTORE_QUIESCED=1` and `CFS_RESTORE_CONFIRM=RESTORE`, then run `node mvc/scripts/restore.mjs <backup-directory> --target-root <empty-recovery-directory>` |
@@ -180,10 +189,13 @@ A successful CI run means the configured workflow passed. It is not proof of pro
 The repository includes deployment examples:
 
 - `deploy/nginx/cfs.conf` — Nginx TLS reverse proxy.
-- `deploy/README.md` — deployment instructions.
+- `deploy/README.md` — VPS deployment instructions.
 - `deploy/systemd/` — service and environment templates.
+- [Render managed-host deployment and staging guide](docs/RENDER-DEPLOYMENT.md) — Web Service settings, persistent storage, environment variables, Dropbox OAuth, and readiness checks.
 
 For a VPS deployment, configure the application to listen on `127.0.0.1:5080`, configure Nginx to terminate HTTPS, and run the Node.js process under a dedicated unprivileged service account. Keep production secrets outside version control and use the host's secret-management mechanism.
+
+For Render, set the service root directory to `mvc`, use Node.js 24.15.0 or newer, and attach a paid persistent disk at `/var/data`. Do not set `CIS_PORT`; the application reads Render's injected `PORT`. See the Render guide for the complete configuration and limitations.
 
 ## Release status
 
@@ -219,6 +231,7 @@ Do not interpret a green CI badge as production approval.
 - `tools/` — environment guard, C4 validator, smoke probe, and tooling tests.
 - `architecture/` — C4 model, context diagram, and bind/vector/parse workflow.
 - `deploy/` — Nginx and systemd deployment assets.
+- `docs/RENDER-DEPLOYMENT.md` — Render deployment and staging guide.
 - `CMakeLists.txt` — CMake validation targets.
 - `.github/workflows/ci.yml` — GitHub Actions CI workflow.
 - `GO-UMBRELLA.md` — Go workflow reference.
@@ -230,4 +243,6 @@ Do not interpret a green CI badge as production approval.
 - [Bind / vector / parse phase](architecture/bind-vector-parse-phase.md)
 - [Umbrella tooling](tools/README.md)
 - [Deployment guide](deploy/README.md)
+- [Render deployment guide](docs/RENDER-DEPLOYMENT.md)
+- [Dropbox integration](docs/DROPBOX-INTEGRATION.md)
 - [Security review](SECURITY-REVIEW.md)
